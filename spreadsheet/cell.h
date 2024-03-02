@@ -70,7 +70,9 @@ private:
     
     std::unique_ptr<Impl> impl_;
     Sheet& sheet_;
-    
     std::set<Cell*> dependent_cells_;
     std::set<Cell*> referenced_cells_;
+
+    void FindCircularDepend(std::unique_ptr<Impl> &temp_impl);
+    void UpdateDepend();
 };

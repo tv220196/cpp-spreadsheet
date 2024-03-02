@@ -8,34 +8,22 @@
 Cell::Cell(Sheet& sheet) : impl_(std::make_unique<EmptyImpl>()),
                            sheet_(sheet) {}
 Cell::~Cell() = default;
- 
-void Cell::Set(std::string text) {
-    
-    std::unique_ptr<Impl> temp_impl;
-    
-    if (text.empty()) {
-        temp_impl = std::make_unique<EmptyImpl>();
-    } else if (text.size() >= 2 && text.at(0) == FORMULA_SIGN) {
-        temp_impl = std::make_unique<FormulaImpl>(std::move(text), sheet_);
-    } else {
-        temp_impl = std::make_unique<TextImpl>(std::move(text));
-    }
-    
-    //поиск циклических зависимостей
+
+void Cell::FindCircularDepend(std::unique_ptr<Impl> &temp_impl) {
     const Impl& temp_impl_ = *temp_impl;
     const auto temp_ref_cells = temp_impl_.GetReferencedCells();
-    
+
     if (!temp_ref_cells.empty()) {
         std::set<const Cell*> ref_collection;
         std::set<const Cell*> enter_collection;
         std::vector<const Cell*> to_enter_collection;
-        
+
         for (auto position : temp_ref_cells) {
             ref_collection.insert(sheet_.GetCellPtr(position));
         }
- 
+
         to_enter_collection.push_back(this);
-        
+
         while (!to_enter_collection.empty()) {
             const Cell* ongoing = to_enter_collection.back();
             to_enter_collection.pop_back();
@@ -46,22 +34,25 @@ void Cell::Set(std::string text) {
                         to_enter_collection.push_back(dependent);
                     }
                 }
-            } else {
+            }
+            else {
                 throw CircularDependencyException("circular dependency detected");
             }
         }
         impl_ = std::move(temp_impl);
-    } else {
+    }
+    else {
         impl_ = std::move(temp_impl);
     }
-    
-    //обновление зависимостей
+}
+
+void Cell::UpdateDepend() {
     for (Cell* refrenced : referenced_cells_) {
         refrenced->dependent_cells_.erase(this);
     }
-    
+
     referenced_cells_.clear();
-    
+
     for (const auto& position : impl_->GetReferencedCells()) {
         Cell* refrenced = sheet_.GetCellPtr(position);
         if (!refrenced) {
@@ -71,12 +62,25 @@ void Cell::Set(std::string text) {
         referenced_cells_.insert(refrenced);
         refrenced->dependent_cells_.insert(this);
     }
-    
+}
+ 
+void Cell::Set(std::string text) {
+    std::unique_ptr<Impl> temp_impl;
+    if (text.empty()) {
+        temp_impl = std::make_unique<EmptyImpl>();
+    } else if (text.size() >= 2 && text.at(0) == FORMULA_SIGN) {
+        temp_impl = std::make_unique<FormulaImpl>(std::move(text), sheet_);
+    }
+    else {
+        temp_impl = std::make_unique<TextImpl>(std::move(text));
+    }
+    FindCircularDepend(temp_impl);
+    UpdateDepend();
     InvalidateAllCache(true);
 }
  
 void Cell::Clear() {
-    impl_ = std::make_unique<EmptyImpl>();
+    Set("");
 }
  
 Cell::Value Cell::GetValue() const {return impl_->GetValue();}
