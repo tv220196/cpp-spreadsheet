@@ -4,5 +4,5 @@ Spreadsheet - позволяет хранить данные разных тип
 # Requirements
 C++17
 # Tech stack
-CMake 3.8.0
+CMake 3.8.0  
 ANTLR 4.7.2
